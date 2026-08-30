@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Germ Busters</title>
+<meta name="description" content="A counting game for kids: pop the germs wriggling through the tummy and count them as you go.">
+<meta name="theme-color" content="#ffd9c0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%A0</text></svg>">
+<style>
+  :root{
+    --ink:#3a2b34;
+    --bar:#fff3e6;
+    --chip:#ffffff;
+    --accent:#ff6b8a;
+    --accent2:#4cc9a4;
+    --shadow:0 6px 0 rgba(0,0,0,.13);
+    --font:"Comic Sans MS","Chalkboard SE","Baloo 2","Trebuchet MS",system-ui,sans-serif;
+    --bg:linear-gradient(160deg,#ffe9d6 0%,#ffd6e0 55%,#e7d9ff 100%);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:var(--font);
+    color:var(--ink);
+    background:var(--bg);
+    overflow:hidden;
+    display:flex;flex-direction:column;
+    user-select:none;
+    transition:background .4s ease;
+  }
+
+  /* ---------- top bar ---------- */
+  header{
+    flex:0 0 auto;
+    display:flex;align-items:center;gap:8px;
+    padding:8px 10px;
+    background:var(--bar);
+    box-shadow:0 3px 12px rgba(0,0,0,.12);
+    z-index:5;
+  }
+  .chip{
+    background:var(--chip);border-radius:16px;padding:4px 12px;
+    box-shadow:var(--shadow);display:flex;align-items:baseline;gap:8px;line-height:1;
+  }
+  .chip .lbl{font-size:clamp(10px,2.4vw,14px);letter-spacing:.5px;opacity:.65;text-transform:uppercase;white-space:nowrap}
+  .chip .val{font-size:clamp(22px,6vw,36px);font-weight:bold}
+  .chip.lvl .val{color:var(--accent2)}
+  .chip.left .val{color:var(--accent)}
+  .spacer{flex:1}
+  .iconbtn{
+    font-family:var(--font);font-size:clamp(16px,4.5vw,24px);
+    background:var(--chip);border:0;border-radius:16px;
+    padding:8px 12px;cursor:pointer;box-shadow:var(--shadow);transition:transform .08s;
+  }
+  .iconbtn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.13)}
+  h1.title{font-size:clamp(14px,3.6vw,24px);margin:0 6px;white-space:nowrap;color:var(--accent);text-shadow:1px 2px 0 #fff}
+  @media (max-width:640px){ h1.title{display:none} }
+
+  /* ---------- play area ---------- */
+  #stage{flex:1 1 auto;position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+
+  /* ---------- overlays ---------- */
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(48,26,40,.45);backdrop-filter:blur(3px);z-index:10;padding:16px;
+  }
+  .overlay.hidden{display:none}
+  .card{
+    background:#fffdf8;border-radius:32px;padding:20px 26px 24px;text-align:center;
+    box-shadow:0 14px 0 rgba(0,0,0,.18),0 30px 60px rgba(0,0,0,.3);
+    max-width:min(94vw,560px);max-height:92%;overflow:auto;
+    animation:cardIn .35s cubic-bezier(.2,1.6,.5,1) both;
+  }
+  @keyframes cardIn{from{transform:scale(.6) translateY(30px);opacity:0}to{transform:none;opacity:1}}
+  .bignum{
+    font-size:clamp(90px,30vw,220px);line-height:.95;font-weight:bold;color:var(--accent);
+    text-shadow:0 6px 0 #ffd0dc,0 12px 24px rgba(0,0,0,.2);
+    animation:pop .6s cubic-bezier(.2,1.8,.4,1) both;
+  }
+  @keyframes pop{0%{transform:scale(0) rotate(-25deg)}60%{transform:scale(1.15) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+  .msg{font-size:clamp(18px,5vw,30px);margin:6px 0 4px}
+  .sub{font-size:clamp(13px,3.4vw,18px);opacity:.7;margin-bottom:12px}
+  .stars{font-size:clamp(24px,7vw,44px);letter-spacing:6px;margin-bottom:2px}
+  .btn{
+    font-family:var(--font);font-size:clamp(20px,5.5vw,30px);
+    background:var(--accent2);color:#fff;border:0;border-radius:22px;padding:14px 34px;margin:6px;
+    cursor:pointer;box-shadow:0 7px 0 #2fa384;transition:transform .08s;
+  }
+  .btn:active{transform:translateY(4px);box-shadow:0 3px 0 #2fa384}
+  .germpeek{font-size:clamp(36px,12vw,72px);margin-bottom:2px;line-height:1}
+
+  /* level banner */
+  #banner{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    background:rgba(255,255,255,.92);border-radius:22px;padding:8px 22px;
+    font-size:clamp(15px,4.2vw,26px);box-shadow:var(--shadow);
+    pointer-events:none;z-index:6;white-space:nowrap;
+    animation:bannerIn 2.4s ease both;
+  }
+  @keyframes bannerIn{0%{transform:translate(-50%,-70px);opacity:0}12%{transform:translate(-50%,0);opacity:1}80%{transform:translate(-50%,0);opacity:1}100%{transform:translate(-50%,-70px);opacity:0}}
+  #banner.hidden{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="chip lvl"><span class="lbl">Level</span><span class="val" id="hudLevel">1</span></div>
+  <div class="chip left"><span class="lbl">Germs left</span><span class="val" id="hudLeft">1</span></div>
+  <h1 class="title">🦠 Germ Busters</h1>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="soundBtn" title="Sound on/off" aria-label="Toggle sound">🔊</button>
+  <button class="iconbtn" id="restartBtn" title="Start again" aria-label="Restart">🔄</button>
+</header>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div id="banner" class="hidden"></div>
+
+  <div class="overlay" id="startScreen">
+    <div class="card">
+      <div class="germpeek">🦠</div>
+      <div class="msg">Germ Busters</div>
+      <div class="sub">Tap every germ wriggling through the tummy.<br>Count them out loud as they pop!</div>
+      <button class="btn" id="playBtn">Play ▶</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="levelScreen">
+    <div class="card">
+      <div class="stars" id="stars">⭐⭐⭐</div>
+      <div class="bignum" id="bigNum">1</div>
+      <div class="msg" id="levelMsg">Level 1 done!</div>
+      <div class="sub" id="levelSub">You popped 1 germ.</div>
+      <button class="btn" id="nextBtn">Next Level ▶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   Germ Busters — a counting game for kids.
+   Single file, no dependencies, works offline.
+
+   Grown-up options in the address bar:
+     ?level=8        start further along
+   ============================================================ */
+
+var MAX_LEVEL = 20;           // germs on the final level
+var WALL = 13;                // wall thickness drawn around every tube
+
+var canvas = document.getElementById('game');
+var ctx = canvas.getContext('2d');
+var stage = document.getElementById('stage');
+
+/* ------------------------------------------------------------
+   View. Each scene reports the box it paints into and that box
+   is what fills the screen, so a tall phone and a wide laptop
+   both show the germs as large as they can be.
+   ------------------------------------------------------------ */
+var DPR = 1, portrait = false, stageW = 1, stageH = 1;
+var view = { scale:1, ox:0, oy:0 };
+
+function measure(){
+  var rect = stage.getBoundingClientRect();
+  stageW = Math.max(1, rect.width);
+  stageH = Math.max(1, rect.height);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width  = Math.floor(stageW * DPR);
+  canvas.height = Math.floor(stageH * DPR);
+  portrait = stageH > stageW * 1.05;
+}
+function fitView(){
+  if(!scene) return;
+  var b = scene.box;
+  var bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+  var s = Math.min(stageW / bw, stageH / bh);
+  view.scale = s;
+  view.ox = (stageW - bw*s)/2 - b.x0*s;
+  view.oy = (stageH - bh*s)/2 - b.y0*s;
+}
+function applyView(){
+  ctx.translate(view.ox, view.oy);
+  ctx.scale(view.scale, view.scale);
+}
+function toVirtual(clientX, clientY){
+  var rect = canvas.getBoundingClientRect();
+  return { x:(clientX - rect.left - view.ox)/view.scale,
+           y:(clientY - rect.top  - view.oy)/view.scale };
+}
+function resize(){
+  var was = portrait;
+  measure();
+  if(scene && was !== portrait) buildScene(true);
+  fitView();
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', function(){ setTimeout(resize, 150); });
+
+/* ------------------------------------------------------------
+   Paths. Every place germs can swim is built from "tubes":
+   a centre line plus a radius, which may taper from point to
+   point. That one idea draws a winding intestine, a stomach
+   with narrow ends, and the palms and fingers of a hand.
+   ------------------------------------------------------------ */
+function P(x,y){ return {x:x, y:y}; }
+
+function pushPt(arr, x, y){
+  var l = arr[arr.length-1];
+  if(!l || Math.hypot(l.x-x, l.y-y) > 0.5) arr.push(P(x,y));
+}
+function quadTo(arr, p0, p1, p2, steps){
+  for(var i=1;i<=steps;i++){
+    var t=i/steps, u=1-t;
+    pushPt(arr, u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0], u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]);
+  }
+}
+function arcTo(arr, cx, cy, r, a0, a1, steps){
+  for(var i=1;i<=steps;i++){
+    var a = a0 + (a1-a0)*(i/steps);
+    pushPt(arr, cx + Math.cos(a)*r, cy + Math.sin(a)*r);
+  }
+}
+// Resample a tube evenly, carrying its radius along with it.
+function prepTube(tube, step){
+  var pts = tube.pts, rs = tube.rs || null;
+  var outP = [pts[0]], outR = [rs ? rs[0] : tube.r];
+  for(var i=1;i<pts.length;i++){
+    var a = pts[i-1], b = pts[i];
+    var ra = rs ? rs[i-1] : tube.r, rb = rs ? rs[i] : tube.r;
+    var d = Math.hypot(b.x-a.x, b.y-a.y);
+    var n = Math.max(1, Math.round(d/step));
+    for(var k=1;k<=n;k++){
+      var t = k/n;
+      outP.push(P(a.x + (b.x-a.x)*t, a.y + (b.y-a.y)*t));
+      outR.push(ra + (rb-ra)*t);
+    }
+  }
+  tube.dense = outP;
+  tube.denseR = outR;
+}
+// A round part (stomach dome, palm) is a very short, very fat tube.
+function blob(x,y,r){ return { pts:[P(x,y-3), P(x,y+3)], r:r }; }
+
+/* ------------------------------------------------------------
+   The gut: a stomach at one end, then a winding intestine
+   ------------------------------------------------------------ */
+function buildGut(tall){
+  var t = [];
+  pushPt(t, 235, 150);                                     // inside the stomach
+  quadTo(t, [235,150],[235,252],[350,252], 18);            // out and to the right
+  pushPt(t, 780, 252);                                     // run 1  →
+  arcTo(t, 780, 336, 84, -Math.PI/2, Math.PI/2, 28);       // U-turn (right)
+  pushPt(t, 205, 420);                                     // run 2  ←
+  arcTo(t, 205, 504, 84, -Math.PI/2, -Math.PI*1.5, 28);    // U-turn (left)
+  pushPt(t, 745, 588);                                     // run 3  →
+  quadTo(t, [745,588],[815,588],[822,652], 14);            // tail off
+
+  return turned(tall, {
+    voice:'the tummy',
+    wall:'#e88fa6', lumen:'#ffd3dd', ridge:'#f3a9bd', gloss:'#fff0f4',
+    haze:'rgba(255,255,255,.35)',
+    germMax:30,
+    tubes:[ blob(235,150,112), { pts:t, r:74, ridge:6, gloss:true } ],
+    bubbles:{ x:235, y:150, spread:78, color:'#ffffff', rise:false }
+  });
+}
+
+// Quarter-turn a whole scene, decorations included, for a tall screen.
+function turned(doIt, sc){
+  if(!doIt) return sc;
+  var H = 700;
+  function rp(p){ return P(H - p.y, p.x); }
+  sc.tubes.forEach(function(t){ t.pts = t.pts.map(rp); });
+  var q = rp(sc.bubbles); sc.bubbles.x = q.x; sc.bubbles.y = q.y;
+  return sc;
+}
+
+// The rectangle a scene paints into, walls and a little air included.
+function measureScene(sc){
+  var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for(var i=0;i<sc.tubes.length;i++){
+    var tb = sc.tubes[i];
+    for(var j=0;j<tb.dense.length;j++){
+      var pad = tb.denseR[j] + WALL + 14;
+      x0 = Math.min(x0, tb.dense[j].x - pad); x1 = Math.max(x1, tb.dense[j].x + pad);
+      y0 = Math.min(y0, tb.dense[j].y - pad); y1 = Math.max(y1, tb.dense[j].y + pad);
+    }
+  }
+  sc.box = { x0:x0, y0:y0, x1:x1, y1:y1 };
+}
+
+/* ------------------------------------------------------------
+   Staying inside the gut
+   ------------------------------------------------------------ */
+var scene = null, caps = [];
+
+function buildScene(reflow){
+  scene = buildGut(portrait);
+  caps = [];
+  for(var i=0;i<scene.tubes.length;i++){
+    var tube = scene.tubes[i];
+    prepTube(tube, 16);
+    for(var j=0;j<tube.dense.length-1;j++){
+      var a = tube.dense[j], b = tube.dense[j+1];
+      var L = Math.hypot(b.x-a.x, b.y-a.y) || 1;
+      caps.push({ a:a, b:b, r:Math.max(tube.denseR[j], tube.denseR[j+1]),
+                  dx:(b.x-a.x)/L, dy:(b.y-a.y)/L });
+    }
+  }
+  measureScene(scene);
+  fitView();
+
+  if(reflow){
+    for(var k=0;k<germs.length;k++){          // same germs, new layout
+      var g = germs[k];
+      var spot = randomSpot(g.r);
+      g.x = spot.x; g.y = spot.y;
+    }
+  }
+}
+
+function closestOnSeg(px,py,a,b){
+  var dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
+  var t = L ? ((px-a.x)*dx + (py-a.y)*dy) / L : 0;
+  t = t<0?0:(t>1?1:t);
+  return { x:a.x+dx*t, y:a.y+dy*t };
+}
+
+// Find the part of the body a germ is in: push it back inside if it has
+// strayed, and remember which way that part runs so the germ can swim
+// along it instead of bouncing off the walls.
+function confine(g){
+  var bestSlack = -1e9, best = null, bx = 0, by = 0, bd = 0;
+  for(var i=0;i<caps.length;i++){
+    var c = caps[i], p = closestOnSeg(g.x, g.y, c.a, c.b);
+    var d = Math.hypot(g.x-p.x, g.y-p.y);
+    var s = (c.r - g.r) - d;
+    if(s > bestSlack){ bestSlack = s; best = c; bx = p.x; by = p.y; bd = d; }
+  }
+  if(!best) return;
+  g.axisX = best.dx; g.axisY = best.dy; g.capR = best.r;
+
+  if(bestSlack < 0){
+    var nx, ny;
+    if(bd < 0.001){ nx = 1; ny = 0; } else { nx = (g.x-bx)/bd; ny = (g.y-by)/bd; }
+    g.x = bx + nx*(best.r - g.r);
+    g.y = by + ny*(best.r - g.r);
+    var dot = g.vx*nx + g.vy*ny;
+    if(dot > 0){ g.vx -= 2*dot*nx; g.vy -= 2*dot*ny; }
+    g.heading = Math.atan2(g.vy, g.vx);
+  }
+}
+
+// A random spot with room for a germ of radius `pad`, favouring roomy parts.
+function randomSpot(pad){
+  var pool = [], total = 0, i;
+  for(i=0;i<caps.length;i++){
+    var c = caps[i];
+    if(c.r < pad + 10) continue;
+    total += (c.r - pad) * (c.r - pad);
+    pool.push({ c:c, w:total });
+  }
+  if(!pool.length) return P(0,0);
+  var pick = Math.random()*total, lo = 0, hi = pool.length-1;
+  while(lo < hi){ var mid = (lo+hi)>>1; if(pool[mid].w < pick) lo = mid+1; else hi = mid; }
+  var seg = pool[lo].c, t = Math.random();
+  var cx = seg.a.x + (seg.b.x-seg.a.x)*t, cy = seg.a.y + (seg.b.y-seg.a.y)*t;
+  var ang = Math.random()*Math.PI*2, rad = Math.random()*(seg.r - pad - 6);
+  return P(cx + Math.cos(ang)*rad, cy + Math.sin(ang)*rad);
+}
+
+/* ------------------------------------------------------------
+   Germs
+   ------------------------------------------------------------ */
+var PALETTE = [
+  ['#7ad151','#3f8a25'], ['#59c8f5','#1f7fae'], ['#ffb43d','#c67a08'],
+  ['#ff7ac0','#c23c86'], ['#b48cff','#6f45c9'], ['#4ee0c0','#159c81'],
+  ['#ff8a5c','#c6482a'], ['#ffe066','#c9a417']
+];
+
+function makeGerm(lvl){
+  var pal = PALETTE[(Math.random()*PALETTE.length)|0];
+  var r = Math.min(scene.germMax, Math.max(16, 30 - lvl*0.7));
+  var spot = randomSpot(r);
+  var speed = 46 + lvl*5 + Math.random()*24;
+  var heading = Math.random()*Math.PI*2;
+  return {
+    x:spot.x, y:spot.y, r:r,
+    color:pal[0], dark:pal[1],
+    vx:Math.cos(heading)*speed, vy:Math.sin(heading)*speed,
+    speed:Math.min(speed, 200), heading:heading,
+    axisX:1, axisY:0, capR:r*3,
+    wobble:(Math.random()*0.9 + 0.5),
+    phase:Math.random()*Math.PI*2,
+    lobes:3 + ((Math.random()*4)|0),
+    spikes:7 + ((Math.random()*5)|0),
+    rot:Math.random()*Math.PI*2,
+    spin:(Math.random()-0.5)*1.2,
+    scale:0
+  };
+}
+
+/* ------------------------------------------------------------
+   Game state
+   ------------------------------------------------------------ */
+var germs = [], puffs = [], numbers = [], ripples = [];
+var level = 1, killed = 0, state = 'start', clock = 0;
+var soundOn = true;
+
+var hudLevel    = document.getElementById('hudLevel');
+var hudLeft     = document.getElementById('hudLeft');
+var startScreen = document.getElementById('startScreen');
+var levelScreen = document.getElementById('levelScreen');
+var bigNum      = document.getElementById('bigNum');
+var levelMsg    = document.getElementById('levelMsg');
+var levelSub    = document.getElementById('levelSub');
+var nextBtn     = document.getElementById('nextBtn');
+var banner      = document.getElementById('banner');
+var soundBtn    = document.getElementById('soundBtn');
+
+var params = new URLSearchParams(location.search);
+var START_LEVEL = Math.min(MAX_LEVEL, Math.max(1, parseInt(params.get('level'), 10) || 1));
+
+function updateHud(){
+  hudLevel.textContent = level;
+  hudLeft.textContent  = germs.length;
+}
+
+function showBanner(text){
+  banner.textContent = text;
+  banner.classList.remove('hidden');
+  banner.style.animation = 'none';
+  void banner.offsetWidth;                    // restart the CSS animation
+  banner.style.animation = '';
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(function(){ banner.classList.add('hidden'); }, 2400);
+}
+
+function startLevel(n){
+  level = n;
+  killed = 0;
+  germs.length = 0; puffs.length = 0; numbers.length = 0; ripples.length = 0;
+  for(var i=0;i<n;i++) germs.push(makeGerm(n));
+  state = 'play';
+  updateHud();
+  showBanner('Level ' + n + ' — find ' + n + ' germ' + (n>1?'s':'') + '!');
+  say('Level ' + n + '. Find ' + n + ' germ' + (n>1?'s':'') + ' in ' + scene.voice + '.');
+}
+
+function finishLevel(){
+  state = 'done';
+  var last = (level >= MAX_LEVEL);
+  bigNum.textContent = level;
+  document.getElementById('stars').textContent = last ? '🏆🏆🏆' : '⭐⭐⭐';
+  if(last){
+    levelMsg.textContent = 'You cleaned every last germ!';
+    levelSub.textContent = 'You counted all the way to ' + level + '. Amazing!';
+    nextBtn.textContent  = 'Play Again ▶';
+  }else{
+    levelMsg.textContent = 'Level ' + level + ' done!';
+    levelSub.textContent = 'You counted ' + level + ' germ' + (level>1?'s':'') + '. Next up: ' + (level+1) + '.';
+    nextBtn.textContent  = 'Next Level ▶';
+  }
+  levelScreen.classList.remove('hidden');
+  chime();
+  say(last ? ('Level ' + level + '! You did it!') : ('Level ' + level + ' complete!'));
+}
+
+/* ------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------ */
+nextBtn.addEventListener('click', function(){
+  levelScreen.classList.add('hidden');
+  startLevel(level >= MAX_LEVEL ? START_LEVEL : level + 1);
+});
+document.getElementById('playBtn').addEventListener('click', function(){
+  startScreen.classList.add('hidden');
+  audioReady();
+  startLevel(START_LEVEL);
+});
+document.getElementById('restartBtn').addEventListener('click', function(){
+  levelScreen.classList.add('hidden');
+  startScreen.classList.add('hidden');
+  startLevel(START_LEVEL);
+});
+soundBtn.addEventListener('click', function(){
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  try{ localStorage.setItem('gb-sound', soundOn ? '1' : '0'); }catch(e){}
+  if(!soundOn && window.speechSynthesis) speechSynthesis.cancel();
+});
+
+/* ------------------------------------------------------------
+   Sound: little pops and spoken numbers
+   ------------------------------------------------------------ */
+var actx = null;
+function audioReady(){
+  if(!actx){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if(AC) actx = new AC();
+  }
+  if(actx && actx.state === 'suspended') actx.resume();
+}
+function blip(freq, dur, type){
+  if(!soundOn || !actx) return;
+  var o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(freq*2.2, actx.currentTime + dur);
+  g.gain.setValueAtTime(0.18, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + dur);
+}
+function chime(){
+  if(!soundOn || !actx) return;
+  [523,659,784,1046].forEach(function(f,i){ setTimeout(function(){ blip(f,0.22,'triangle'); }, i*110); });
+}
+function say(text){
+  if(!soundOn || !('speechSynthesis' in window)) return;
+  try{
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.92; u.pitch = 1.25;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ------------------------------------------------------------
+   Input
+   ------------------------------------------------------------ */
+canvas.addEventListener('pointerdown', function(e){
+  e.preventDefault();
+  audioReady();
+  if(state !== 'play') return;
+  var p = toVirtual(e.clientX, e.clientY);
+  ripples.push({ x:p.x, y:p.y, t:0 });
+  for(var i=germs.length-1; i>=0; i--){
+    var g = germs[i];
+    if(Math.hypot(p.x-g.x, p.y-g.y) <= g.r*1.55){ popGerm(i); return; }
+  }
+});
+
+function popGerm(i){
+  var g = germs[i];
+  germs.splice(i,1);
+  killed++;
+  for(var k=0;k<14;k++){
+    var a = Math.random()*Math.PI*2, s = 60 + Math.random()*220;
+    puffs.push({ x:g.x, y:g.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+                 r:g.r*(0.14 + Math.random()*0.3), life:0,
+                 max:0.5 + Math.random()*0.4,
+                 color: Math.random() < 0.5 ? g.color : g.dark });
+  }
+  numbers.push({ x:g.x, y:g.y, text:String(killed), life:0, max:1.2 });
+  blip(300 + killed*40, 0.18, 'square');
+  say(String(killed));
+  updateHud();
+  if(germs.length === 0) setTimeout(finishLevel, 650);
+}
+
+/* ------------------------------------------------------------
+   Update
+   ------------------------------------------------------------ */
+function turnToward(from, to, most){
+  var d = ((to - from + Math.PI*3) % (Math.PI*2)) - Math.PI;
+  if(d >  most) d =  most;
+  if(d < -most) d = -most;
+  return from + d;
+}
+
+function update(dt){
+  var i, j, g;
+  for(i=0;i<germs.length;i++){
+    g = germs[i];
+    if(g.scale < 1) g.scale = Math.min(1, g.scale + dt*3);
+
+    // How boxed in is this germ? In a narrow finger or a length of gut it
+    // swims along the tube; in the open stomach it roams freely.
+    var snug = Math.min(1, (g.r*2.5) / Math.max(1, g.capR));
+
+    g.heading += (Math.random()-0.5) * 2.6 * dt * g.wobble * (1 - 0.65*snug);
+    if(snug > 0.05){
+      var along = (Math.cos(g.heading)*g.axisX + Math.sin(g.heading)*g.axisY) >= 0 ? 1 : -1;
+      var want = Math.atan2(g.axisY*along, g.axisX*along);
+      g.heading = turnToward(g.heading, want, dt * 3.2 * snug);
+    }
+
+    var tx = Math.cos(g.heading)*g.speed, ty = Math.sin(g.heading)*g.speed;
+    g.vx += (tx - g.vx) * Math.min(1, dt*2.6);
+    g.vy += (ty - g.vy) * Math.min(1, dt*2.6);
+    var sp = Math.hypot(g.vx, g.vy);
+    if(sp > g.speed*1.4){ g.vx = g.vx/sp*g.speed*1.4; g.vy = g.vy/sp*g.speed*1.4; }
+
+    g.x += g.vx*dt;
+    g.y += g.vy*dt;
+    g.rot += g.spin*dt;
+    confine(g);
+  }
+
+  // keep germs from stacking up, so they stay countable
+  for(i=0;i<germs.length;i++){
+    for(j=i+1;j<germs.length;j++){
+      var a = germs[i], b = germs[j];
+      var dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy), min = (a.r+b.r)*1.05;
+      if(d > 0.001 && d < min){
+        var push = (min-d)/2, nx = dx/d, ny = dy/d;
+        a.x -= nx*push; a.y -= ny*push;
+        b.x += nx*push; b.y += ny*push;
+        a.heading = Math.atan2(-ny,-nx); b.heading = Math.atan2(ny,nx);
+        confine(a); confine(b);
+      }
+    }
+  }
+  stepEffects(dt);
+}
+
+function stepEffects(dt){
+  var i;
+  for(i=puffs.length-1;i>=0;i--){
+    var p = puffs[i];
+    p.life += dt;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.94; p.vy *= 0.94; p.vy += 60*dt;
+    if(p.life >= p.max) puffs.splice(i,1);
+  }
+  for(i=numbers.length-1;i>=0;i--){
+    var n = numbers[i];
+    n.life += dt; n.y -= 44*dt;
+    if(n.life >= n.max) numbers.splice(i,1);
+  }
+  for(i=ripples.length-1;i>=0;i--){
+    ripples[i].t += dt;
+    if(ripples[i].t > 0.45) ripples.splice(i,1);
+  }
+}
+
+/* ------------------------------------------------------------
+   Drawing
+   ------------------------------------------------------------ */
+function traceTube(tube){
+  var p = tube.dense;
+  ctx.beginPath();
+  ctx.moveTo(p[0].x, p[0].y);
+  for(var i=1;i<p.length;i++) ctx.lineTo(p[i].x, p[i].y);
+}
+// An even tube is one stroke; a tapered one is stroked segment by segment
+// with round caps, which merge into a smooth shape.
+function strokeTube(tube, extra){
+  if(!tube.rs){
+    ctx.lineWidth = (tube.r + extra) * 2;
+    traceTube(tube); ctx.stroke();
+    return;
+  }
+  var p = tube.dense, r = tube.denseR;
+  for(var i=0;i<p.length-1;i++){
+    ctx.lineWidth = ((r[i] + r[i+1])/2 + extra) * 2;
+    ctx.beginPath();
+    ctx.moveTo(p[i].x, p[i].y);
+    ctx.lineTo(p[i+1].x, p[i+1].y);
+    ctx.stroke();
+  }
+}
+
+function drawScene(t){
+  var i, k, tube;
+  var b = scene.box;
+
+  // soft body haze behind everything
+  ctx.save();
+  ctx.fillStyle = scene.haze;
+  ctx.beginPath();
+  ctx.ellipse((b.x0+b.x1)/2, (b.y0+b.y1)/2, (b.x1-b.x0)*0.52, (b.y1-b.y0)*0.52, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  // outer wall, then the inside, each in one pass so the parts merge
+  ctx.strokeStyle = scene.wall;
+  for(i=0;i<scene.tubes.length;i++) strokeTube(scene.tubes[i], WALL);
+  ctx.strokeStyle = scene.lumen;
+  for(i=0;i<scene.tubes.length;i++) strokeTube(scene.tubes[i], 0);
+
+  // ridges across the tubes: haustra in the gut, folds in the stomach
+  ctx.save();
+  ctx.globalAlpha = 0.32;
+  ctx.strokeStyle = scene.ridge;
+  ctx.lineWidth = 5;
+  for(i=0;i<scene.tubes.length;i++){
+    tube = scene.tubes[i];
+    if(!tube.ridge) continue;
+    var pts = tube.dense;
+    for(k=2;k<pts.length-2;k+=tube.ridge){
+      var pa = pts[k-1], pb = pts[k+1];
+      var dx = pb.x-pa.x, dy = pb.y-pa.y, L = Math.hypot(dx,dy) || 1;
+      var nx = -dy/L, ny = dx/L;
+      var kr = tube.denseR[k];
+      var wob = 0.80 + 0.09*Math.sin(t*1.4 + k*0.35);
+      var inner = tube.ridgeInner || 0;
+      if(inner){                                  // folds hugging the wall
+        for(var side=-1; side<=1; side+=2){
+          ctx.beginPath();
+          ctx.moveTo(pts[k].x + side*nx*kr*inner, pts[k].y + side*ny*kr*inner);
+          ctx.lineTo(pts[k].x + side*nx*kr*(wob+0.1), pts[k].y + side*ny*kr*(wob+0.1));
+          ctx.stroke();
+        }
+      }else{                                      // a bar right across the tube
+        ctx.beginPath();
+        ctx.moveTo(pts[k].x - nx*kr*wob, pts[k].y - ny*kr*wob);
+        ctx.lineTo(pts[k].x + nx*kr*wob, pts[k].y + ny*kr*wob);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  // moving gloss so the surface looks wet
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = scene.gloss;
+  ctx.setLineDash([26, 34]);
+  ctx.lineDashOffset = -t*18;
+  for(i=0;i<scene.tubes.length;i++){
+    tube = scene.tubes[i];
+    if(!tube.gloss) continue;
+    ctx.lineWidth = tube.r * 0.5;
+    traceTube(tube); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // drifting bubbles
+  if(scene.bubbles){
+    var bb = scene.bubbles;
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = bb.color;
+    for(k=0;k<10;k++){
+      var ang = t*0.5 + k*1.1;
+      var bx = bb.x + Math.cos(ang + k)*bb.spread*(0.35 + (k%4)*0.2);
+      var by = bb.rise
+        ? bb.y + bb.spread*0.7 - ((t*22 + k*57) % (bb.spread*1.6))
+        : bb.y + Math.sin(ang*1.3)*bb.spread*0.45;
+      var br = 5 + (k%3)*4;
+      ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2); ctx.fill();
+      if(bb.soap){
+        ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = '#bfe6ff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(bx, by, br + 3, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+function drawGerm(g, t){
+  var bob = 1 + 0.06*Math.sin(t*4 + g.phase);
+  var r = g.r * bob * g.scale;
+  if(r <= 0.5) return;
+  var i;
+
+  ctx.save();
+  ctx.translate(g.x, g.y);
+
+  // wiggly spikes
+  ctx.strokeStyle = g.dark;
+  ctx.lineWidth = Math.max(2, r*0.16);
+  ctx.lineCap = 'round';
+  for(i=0;i<g.spikes;i++){
+    var a = (i/g.spikes)*Math.PI*2 + g.rot + Math.sin(t*3 + i)*0.09;
+    var len = r * (1.26 + 0.13*Math.sin(t*5 + i*1.7));
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*r*0.85, Math.sin(a)*r*0.85);
+    ctx.lineTo(Math.cos(a)*len, Math.sin(a)*len);
+    ctx.stroke();
+    ctx.fillStyle = g.dark;
+    ctx.beginPath(); ctx.arc(Math.cos(a)*len, Math.sin(a)*len, r*0.10, 0, Math.PI*2); ctx.fill();
+  }
+
+  // blobby body
+  ctx.beginPath();
+  var N = 54;
+  for(i=0;i<=N;i++){
+    var ang = (i/N)*Math.PI*2;
+    var rr = r * (1 + 0.10*Math.sin(ang*g.lobes + t*3.2 + g.phase));
+    var x = Math.cos(ang)*rr, y = Math.sin(ang)*rr;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = g.color; ctx.fill();
+  ctx.lineWidth = Math.max(2, r*0.12); ctx.strokeStyle = g.dark; ctx.stroke();
+
+  // spots
+  ctx.globalAlpha = 0.28; ctx.fillStyle = g.dark;
+  ctx.beginPath(); ctx.arc(-r*0.38, r*0.36, r*0.17, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( r*0.42, r*0.20, r*0.12, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // eyes that look where the germ is heading
+  var er = r*0.29, ex = r*0.33, ey = -r*0.13;
+  var sp = Math.hypot(g.vx, g.vy) || 1;
+  var px = (g.vx/sp)*er*0.36, py = (g.vy/sp)*er*0.36;
+  for(var e=-1;e<=1;e+=2){
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(e*ex, ey, er, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#2c2436';
+    ctx.beginPath(); ctx.arc(e*ex+px, ey+py, er*0.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
+    ctx.beginPath(); ctx.arc(e*ex+px-er*0.17, ey+py-er*0.2, er*0.17, 0, Math.PI*2); ctx.fill();
+  }
+
+  // cheeky grin
+  ctx.strokeStyle = '#2c2436';
+  ctx.lineWidth = Math.max(1.5, r*0.09);
+  ctx.beginPath();
+  ctx.arc(0, r*0.26, r*0.3, 0.16*Math.PI, 0.84*Math.PI);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawEffects(){
+  var i;
+  for(i=0;i<ripples.length;i++){
+    var rp = ripples[i], k = rp.t/0.45;
+    ctx.save();
+    ctx.globalAlpha = (1-k)*0.5;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(rp.x, rp.y, 12 + k*46, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+  for(i=0;i<puffs.length;i++){
+    var p = puffs[i], f = 1 - p.life/p.max;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, f);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r*(0.6 + f*0.8), 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  for(i=0;i<numbers.length;i++){
+    var n = numbers[i], k2 = n.life/n.max;
+    var grow = k2 < 0.25 ? (k2/0.25) : 1;
+    var size = 64 * (0.5 + grow*0.8);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0,(k2-0.6)/0.4));
+    ctx.translate(n.x, n.y);
+    ctx.font = 'bold ' + size + 'px "Comic Sans MS","Trebuchet MS",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = size*0.16; ctx.strokeStyle = '#ffffff'; ctx.lineJoin = 'round';
+    ctx.strokeText(n.text, 0, 0);
+    ctx.fillStyle = '#ff4f7d';
+    ctx.fillText(n.text, 0, 0);
+    ctx.restore();
+  }
+}
+
+function render(t){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0, 0, stageW, stageH);
+  ctx.save();
+  applyView();
+  drawScene(t);
+  for(var i=0;i<germs.length;i++) drawGerm(germs[i], t);
+  drawEffects();
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------
+   Main loop
+   ------------------------------------------------------------ */
+var last = performance.now();
+function frame(now){
+  var dt = Math.min(0.05, (now - last)/1000);
+  last = now;
+  clock += dt;
+  if(state === 'play') update(dt);
+  else stepEffects(dt);            // let the last pop finish playing out
+  render(clock);
+  requestAnimationFrame(frame);
+}
+
+/* ------------------------------------------------------------
+   Boot
+   ------------------------------------------------------------ */
+(function boot(){
+  var savedSound = null;
+  try{ savedSound = localStorage.getItem('gb-sound'); }catch(e){}
+  if(savedSound === '0'){ soundOn = false; soundBtn.textContent = '🔇'; }
+
+  measure();
+  buildScene(false);
+
+  // a few germs drift behind the start card
+  for(var d=0; d<5; d++) germs.push(makeGerm(3));
+  for(var i=0;i<germs.length;i++) germs[i].scale = 1;
+  state = 'play';
+  updateHud();
+  hudLeft.textContent = String(START_LEVEL);
+
+  requestAnimationFrame(frame);
+})();
+
+document.addEventListener('visibilitychange', function(){ last = performance.now(); });
+window.addEventListener('keydown', function(e){ if(e.key === ' ') e.preventDefault(); });
+})();
+
+</script>
+</body>
+</html>
